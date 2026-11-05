@@ -32,6 +32,121 @@ function load() {
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify(store)); } catch { toast('Could not save to this browser'); }
 }
+// ---------- shared storage (Vercel + Upstash) ----------
+// The browser keeps a copy so the page opens instantly; the server copy is what
+// keeps phone and desktop in step.
+const PASS_KEY = 'lineTracker.pass';
+const remote = { state: 'checking' }; // checking | on | off | locked | error
+
+function pass() {
+  try { return localStorage.getItem(PASS_KEY) || ''; } catch { return ''; }
+}
+async function api(method, q = '', body) {
+  const r = await fetch(`/api/store${q}`, {
+    method,
+    headers: { 'x-passcode': pass(), ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let j = null;
+  try { j = await r.json(); } catch {}
+  return { status: r.status, j };
+}
+function touch(w) {
+  w.updatedAt = new Date().toISOString();
+}
+function stamp(w) {
+  return Date.parse(w.updatedAt || w.lastSync || w.savedAt || 0) || 0;
+}
+
+async function connect() {
+  let res;
+  try { res = await api('GET'); } catch { remote.state = 'error'; return renderRemote(); }
+  if (res.status === 503) { remote.state = 'off'; return renderRemote(); }
+  if (res.status === 401) { remote.state = 'locked'; return renderRemote(); }
+  if (res.status !== 200) { remote.state = 'error'; return renderRemote(); }
+  remote.state = 'on';
+  renderRemote();
+
+  const server = res.j.weeks || {};
+  const merged = { ...server };
+  const uploads = [];
+  for (const [id, w] of Object.entries(store.weeks)) {
+    const sv = server[id];
+    if (!sv) {
+      // Already pushed once but gone from the server means another device deleted it.
+      if (w.remoteAt) continue;
+      merged[id] = w;
+      uploads.push(w);
+    } else if (stamp(w) > stamp(sv)) {
+      merged[id] = w;
+      uploads.push(w);
+    }
+  }
+  store.weeks = merged;
+  if (res.j.settings?.th) store.th = res.j.settings.th;
+  if (!store.weeks[store.current]) store.current = pickDefaultWeek(store.weeks);
+  save();
+  render();
+  for (const w of uploads) await pushWeek(w);
+}
+
+async function pushWeek(w) {
+  if (!w.updatedAt) touch(w);
+  if (remote.state !== 'on') return;
+  w.remoteAt = new Date().toISOString();
+  const r = await api('PUT', `?week=${w.id}`, w).catch(() => null);
+  if (!r || r.status !== 200) {
+    delete w.remoteAt;
+    toast('Saved on this device, but the cloud save failed');
+  }
+  save();
+}
+
+async function pushSettings() {
+  if (remote.state === 'on') await api('PUT', '?settings=1', { th: store.th }).catch(() => null);
+}
+
+function renderRemote() {
+  const pill = $('cloudPill');
+  const text = {
+    checking: 'Connecting...',
+    on: 'Synced across devices',
+    off: 'This device only',
+    locked: 'Enter passcode',
+    error: 'Cloud unavailable',
+  }[remote.state];
+  pill.textContent = text;
+  pill.className = `cloud ${remote.state}`;
+  $('passPanel').hidden = remote.state !== 'locked';
+}
+
+$('cloudPill').onclick = () => {
+  if (remote.state === 'off') toast('Shared storage is not set up on Vercel yet, so data stays in this browser');
+  else if (remote.state === 'error') connect();
+  else if (remote.state === 'locked') $('passInput').focus();
+  else if (remote.state === 'on') connect().then(() => toast('Up to date'));
+};
+
+$('passForm').onsubmit = async e => {
+  e.preventDefault();
+  const v = $('passInput').value.trim();
+  if (!v) return;
+  try { localStorage.setItem(PASS_KEY, v); } catch {}
+  await connect();
+  if (remote.state === 'locked') {
+    $('passMsg').textContent = 'That passcode did not work.';
+  } else {
+    $('passInput').value = '';
+    $('passMsg').textContent = '';
+    toast('Connected');
+  }
+};
+
+// Pick up changes made on another device when you come back to the tab.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && remote.state === 'on') connect();
+});
+
 function week() {
   return store.weeks[store.current] || null;
 }
@@ -102,9 +217,11 @@ $('saveBtn').onclick = () => {
     w.live = Object.fromEntries(Object.entries(prev.live || {}).filter(([id]) => keep.has(id)));
     w.lastSync = prev.lastSync;
   }
+  touch(w);
   store.weeks[w.id] = w;
   store.current = w.id;
   save();
+  pushWeek(w);
   $('pasteBox').value = '';
   pending = null;
   $('parsePreview').textContent = '';
@@ -121,6 +238,7 @@ $('deleteBtn').onclick = () => {
   store.current = pickDefaultWeek(store.weeks);
   save();
   render();
+  if (remote.state === 'on') api('DELETE', `?week=${w.id}`).catch(() => toast('Deleted here, but the cloud delete failed'));
 };
 
 $('weekSel').onchange = e => { store.current = e.target.value; save(); render(); };
@@ -153,14 +271,32 @@ async function sync() {
     const byLeague = Object.fromEntries(results);
     const now = new Date().toISOString();
     const unmatched = [];
+    const needClose = {};
     for (const g of w.games) {
       const m = findEvent(g, byLeague[g.league] || []);
       if (!m) { unmatched.push(g.id); continue; }
       w.live[g.id] = mergeLive(w.live[g.id], liveFromEvent(g, m), now);
+      const lv = w.live[g.id];
+      if (m.event.completed && lv.line1 == null && lv.total == null) (needClose[g.league] ||= []).push({ g, m });
     }
+
+    // Finished games lose their odds on the scoreboard; fetch the closing line instead.
+    await Promise.all(Object.entries(needClose).map(async ([lg, list]) => {
+      const ids = list.map(x => x.m.event.id).join(',');
+      const r = await fetch(`/api/lines?league=${lg}&close=${ids}`).catch(() => null);
+      if (!r || !r.ok) return;
+      const { odds } = await r.json();
+      for (const { g, m } of list) {
+        if (!odds[m.event.id]) continue;
+        w.live[g.id] = mergeLive(w.live[g.id], liveFromEvent(g, { event: { ...m.event, odds: odds[m.event.id] }, order: m.order }), now);
+      }
+    }));
+
     w.unmatched = unmatched;
     w.lastSync = now;
+    touch(w);
     save();
+    pushWeek(w);
     toast(unmatched.length ? `Synced. ${unmatched.length} games not found on ESPN` : 'Synced with ESPN');
     render();
   } catch (e) {
@@ -190,8 +326,8 @@ document.querySelector('.chips').addEventListener('click', e => {
   render();
 });
 $('sortSel').onchange = e => { view.sort = e.target.value; render(); };
-$('thSpread').onchange = e => { store.th.spread = +e.target.value; save(); render(); };
-$('thTotal').onchange = e => { store.th.total = +e.target.value; save(); render(); };
+$('thSpread').onchange = e => { store.th.spread = +e.target.value; save(); render(); pushSettings(); };
+$('thTotal').onchange = e => { store.th.total = +e.target.value; save(); render(); pushSettings(); };
 
 // ---------- helpers ----------
 function esc(s) {
@@ -239,7 +375,13 @@ function render() {
   $('thTotal').value = String(store.th.total);
   $('deleteBtn').hidden = !w;
 
+  // Open the paste box when there's nothing to show; close it again once a week arrives.
+  if (w && $('pastePanel').dataset.auto) {
+    $('pastePanel').hidden = true;
+    delete $('pastePanel').dataset.auto;
+  }
   if (!w) {
+    if ($('pastePanel').hidden) $('pastePanel').dataset.auto = '1';
     $('pastePanel').hidden = false;
     $('summary').innerHTML = '';
     $('hits').innerHTML = '';
@@ -435,3 +577,5 @@ function card(w, r) {
 }
 
 render();
+renderRemote();
+connect();

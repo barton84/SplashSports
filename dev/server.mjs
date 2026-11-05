@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import handler from '../api/lines.js';
+import storeHandler from '../api/store.js';
 import { parseSplash, normName } from '../parser.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -81,22 +82,62 @@ function mockEvents(league) {
   });
 }
 
+// In mock mode, stand in for Upstash with an in-memory store so /api/store runs for real.
+const mem = { hash: new Map(), kv: new Map() };
+if (process.env.MOCK) {
+  process.env.KV_REST_API_URL = `http://localhost:${PORT}/__redis`;
+  process.env.KV_REST_API_TOKEN = 'dev';
+  process.env.APP_PASSCODE ||= '1234';
+}
+function fakeRedis([cmd, key, ...args]) {
+  const h = mem.hash.get(key) || new Map();
+  switch (cmd) {
+    case 'HGETALL': return [...h].flat();
+    case 'HSET': h.set(args[0], args[1]); mem.hash.set(key, h); return 1;
+    case 'HDEL': return h.delete(args[0]) ? 1 : 0;
+    case 'GET': return mem.kv.get(key) ?? null;
+    case 'SET': mem.kv.set(key, args[0]); return 'OK';
+  }
+  throw new Error('unsupported ' + cmd);
+}
+
+function shimRes(res) {
+  return {
+    statusCode: 200,
+    headers: {},
+    setHeader(k, v) { this.headers[k] = v; },
+    status(c) { this.statusCode = c; return this; },
+    json(o) { res.writeHead(this.statusCode, { ...this.headers, 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); },
+  };
+}
+
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
+  const query = Object.fromEntries(url.searchParams);
+  if (url.pathname === '/__redis' && process.env.MOCK) {
+    let body = '';
+    for await (const c of req) body += c;
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ result: fakeRedis(JSON.parse(body)) }));
+  }
+  if (url.pathname === '/api/store') {
+    return storeHandler(Object.assign(req, { query }), shimRes(res));
+  }
   if (url.pathname === '/api/lines') {
-    const query = Object.fromEntries(url.searchParams);
     if (process.env.MOCK) {
+      const events = mockEvents(query.league);
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ league: query.league, fetchedAt: new Date().toISOString(), events: mockEvents(query.league) }));
+      if (query.close) {
+        // Closing lines for finished games, like ESPN's summary pages.
+        const want = new Set(query.close.split(','));
+        const odds = Object.fromEntries(events.filter(e => want.has(e.id)).map(e => [e.id, e.odds]));
+        return res.end(JSON.stringify({ league: query.league, odds }));
+      }
+      // Like the real scoreboard, finished games come back with no odds.
+      const board = events.map(e => (e.completed ? { ...e, odds: null } : e));
+      return res.end(JSON.stringify({ league: query.league, fetchedAt: new Date().toISOString(), events: board }));
     }
-    const shim = {
-      statusCode: 200,
-      headers: {},
-      setHeader(k, v) { this.headers[k] = v; },
-      status(c) { this.statusCode = c; return this; },
-      json(o) { res.writeHead(this.statusCode, { ...this.headers, 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); },
-    };
-    return handler({ query }, shim);
+    return handler({ query }, shimRes(res));
   }
   const file = path.join(root, url.pathname === '/' ? 'index.html' : path.normalize(url.pathname));
   if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {

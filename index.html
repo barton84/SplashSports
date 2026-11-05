@@ -20,6 +20,7 @@
         </div>
       </div>
       <div class="top-actions">
+        <button id="cloudPill" class="cloud checking" type="button">Connecting...</button>
         <span id="syncStatus" class="sync-status"></span>
         <button id="syncBtn" class="btn primary" type="button">Sync ESPN</button>
         <button id="linesBtn" class="btn" type="button">Paste lines</button>
@@ -28,6 +29,19 @@
   </header>
 
   <main class="wrap">
+    <section id="passPanel" class="panel pass" hidden>
+      <form id="passForm">
+        <div>
+          <h2>Enter your passcode</h2>
+          <p class="hint">This keeps your weeks the same on your phone and computer. You only enter it once per device.</p>
+        </div>
+        <div class="pass-row">
+          <input id="passInput" type="password" inputmode="text" autocomplete="current-password" placeholder="Passcode">
+          <button class="btn primary" type="submit">Unlock</button>
+        </div>
+        <p id="passMsg" class="bad"></p>
+      </form>
+    </section>
     <section id="pastePanel" class="panel" hidden>
       <div class="panel-head">
         <div>

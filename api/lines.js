@@ -71,9 +71,34 @@ function compactEvent(ev) {
   };
 }
 
+// ESPN drops odds from the scoreboard once a game is final, but each game's summary
+// page keeps the closing line in "pickcenter".
+async function closingLines(league, ids) {
+  const base = BASE[league].replace(/scoreboard$/, 'summary');
+  const out = {};
+  await Promise.all(ids.map(async id => {
+    try {
+      const r = await fetch(`${base}?event=${id}`, { headers: { 'User-Agent': 'line-tracker' } });
+      if (!r.ok) return;
+      const j = await r.json();
+      const comp = j.header?.competitions?.[0];
+      const pc = (j.pickcenter || []).filter(p => p && (p.details || p.overUnder != null));
+      if (!comp || !pc.length) return;
+      const odds = parseOdds({ odds: pc, competitors: comp.competitors || [] });
+      if (odds && (odds.spreadHome != null || odds.total != null)) out[id] = odds;
+    } catch {}
+  }));
+  return out;
+}
+
 export default async function handler(req, res) {
-  const { league, from, to } = req.query || {};
+  const { league, from, to, close } = req.query || {};
   if (!BASE[league]) return res.status(400).json({ error: 'league must be nfl or cfb' });
+  if (close) {
+    const ids = String(close).split(',').filter(x => /^\d{1,12}$/.test(x)).slice(0, 60);
+    res.setHeader('Cache-Control', 's-maxage=3600');
+    return res.status(200).json({ league, odds: await closingLines(league, ids) });
+  }
   if (!/^\d{8}$/.test(from || '') || !/^\d{8}$/.test(to || '')) {
     return res.status(400).json({ error: 'from and to must be YYYYMMDD' });
   }

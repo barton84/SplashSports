@@ -236,3 +236,21 @@ tr.mu .tc { gap: 6px; }
 }
 
 tr.muted td.ln, tr.muted td.gp, tr.muted .nm, tr.muted .rec, tr.muted .rank, tr.muted .tlabel { opacity: .45; }
+
+/* cloud status */
+.cloud { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 11px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; color: var(--ink-2); }
+.cloud::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; background: var(--ink-3); vertical-align: 1px; }
+.cloud.on { color: var(--good); border-color: color-mix(in srgb, var(--good) 40%, var(--line)); }
+.cloud.on::before { background: var(--good); }
+.cloud.off, .cloud.error { color: var(--warn); }
+.cloud.off::before, .cloud.error::before { background: var(--warn); }
+.cloud.locked { color: var(--bad); }
+.cloud.locked::before { background: var(--bad); }
+.pass form { display: flex; flex-direction: column; gap: 4px; }
+.pass-row { display: flex; gap: 8px; max-width: 420px; }
+.pass-row input { flex: 1; border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; background: var(--surface-2); font-size: 16px; }
+#passMsg { margin: 4px 0 0; font-size: 13px; min-height: 1em; }
+@media (max-width: 560px) {
+  .top-actions { flex-wrap: wrap; }
+  .cloud { order: 3; width: 100%; text-align: center; }
+}

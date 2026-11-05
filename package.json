@@ -1,0 +1,10 @@
+{
+  "name": "splash-line-tracker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node dev/server.mjs",
+    "dev:mock": "MOCK=1 node dev/server.mjs"
+  },
+  "engines": { "node": ">=18" }
+}

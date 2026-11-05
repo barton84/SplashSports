@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Line Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap top-inner">
+      <div class="brand">
+        <h1>Line Tracker</h1>
+        <div class="week-row">
+          <select id="weekSel" aria-label="Week"></select>
+          <p id="weekLabel" class="sub">No lines loaded</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <span id="syncStatus" class="sync-status"></span>
+        <button id="syncBtn" class="btn primary" type="button">Sync ESPN</button>
+        <button id="linesBtn" class="btn" type="button">Paste lines</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section id="pastePanel" class="panel" hidden>
+      <div class="panel-head">
+        <div>
+          <h2>Splash lines</h2>
+          <p class="hint">On Splash, select the whole pick'em page, copy, and paste it here. Each paste is saved to its week (Tuesday through Monday night). Pasting a week you already saved replaces it.</p>
+        </div>
+      </div>
+      <textarea id="pasteBox" spellcheck="false" placeholder="Paste the Splash Sports pick'em page here"></textarea>
+      <div class="panel-foot">
+        <p id="parsePreview" class="preview"></p>
+        <div class="panel-btns">
+          <button id="deleteBtn" class="btn ghost danger" type="button">Delete this week</button>
+          <button id="saveBtn" class="btn primary" type="button" disabled>Save as new week</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="summary" class="summary"></section>
+    <section id="hitsWrap" class="hits">
+      <div class="seg small" id="hitScope">
+        <button data-v="week" type="button">This week</button>
+        <button data-v="all" type="button" class="on">All weeks</button>
+      </div>
+      <div id="hits"></div>
+    </section>
+
+    <section class="controls" id="controls">
+      <div class="seg" id="leagueSeg">
+        <button data-v="all" class="on" type="button">All</button>
+        <button data-v="nfl" type="button">NFL</button>
+        <button data-v="cfb" type="button">College</button>
+      </div>
+      <div class="seg" id="marketSeg">
+        <button data-v="both" class="on" type="button">Both</button>
+        <button data-v="spreads" type="button">Spreads</button>
+        <button data-v="totals" type="button">Totals</button>
+      </div>
+      <div class="chips">
+        <button class="chip" data-filter="flagged" type="button">Flagged only</button>
+        <button class="chip" data-filter="hideFinal" type="button">Hide finals</button>
+      </div>
+      <div class="right-controls">
+        <label class="sort">Flag spread at
+          <select id="thSpread"><option>0.5</option><option>1</option><option>1.5</option><option>2</option><option>3</option></select>
+        </label>
+        <label class="sort">total at
+          <select id="thTotal"><option>0.5</option><option>1</option><option>1.5</option><option>2</option><option>3</option></select>
+        </label>
+        <label class="sort">Sort
+          <select id="sortSel">
+            <option value="time">Kickoff (by day)</option>
+            <option value="gap">Biggest gap</option>
+            <option value="spreadGap">Biggest spread gap</option>
+            <option value="totalGap">Biggest total gap</option>
+            <option value="flaggedFirst">Flagged first</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <section id="list"></section>
+    <p id="empty" class="empty" hidden></p>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

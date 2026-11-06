@@ -61,9 +61,16 @@
 
     <section id="summary" class="summary"></section>
     <section id="hitsWrap" class="hits">
-      <div class="seg small" id="hitScope">
-        <button data-v="week" type="button">This week</button>
-        <button data-v="all" type="button" class="on">All weeks</button>
+      <div class="hits-ctrls">
+        <div class="seg small" id="hitMarket">
+          <button data-v="both" type="button" class="on">Both</button>
+          <button data-v="spreads" type="button">Spreads</button>
+          <button data-v="totals" type="button">Totals</button>
+        </div>
+        <div class="seg small" id="hitScope">
+          <button data-v="week" type="button">This week</button>
+          <button data-v="all" type="button" class="on">All weeks</button>
+        </div>
       </div>
       <div id="hits"></div>
     </section>

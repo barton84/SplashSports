@@ -5,7 +5,7 @@ const KEY = 'lineTracker.v2';
 const OLD_KEY = 'lineTracker.v1';
 const $ = id => document.getElementById(id);
 
-const view = { league: 'all', market: 'both', flagged: false, hideFinal: false, sort: 'time', hitScope: 'all' };
+const view = { league: 'all', market: 'both', flagged: false, hideFinal: false, sort: 'time', hitScope: 'all', hitMarket: 'both' };
 let store = load();
 let pending = null;
 
@@ -319,6 +319,7 @@ function segClick(id, key) {
 segClick('leagueSeg', 'league');
 segClick('marketSeg', 'market');
 segClick('hitScope', 'hitScope');
+segClick('hitMarket', 'hitMarket');
 document.querySelector('.chips').addEventListener('click', e => {
   const b = e.target.closest('.chip');
   if (!b) return;
@@ -392,7 +393,7 @@ function render() {
   }
   $('controls').hidden = false;
 
-  for (const [segId, key] of [['leagueSeg', 'league'], ['marketSeg', 'market'], ['hitScope', 'hitScope']]) {
+  for (const [segId, key] of [['leagueSeg', 'league'], ['marketSeg', 'market'], ['hitScope', 'hitScope'], ['hitMarket', 'hitMarket']]) {
     for (const b of $(segId).children) b.classList.toggle('on', b.dataset.v === view[key]);
   }
   for (const b of $('leagueSeg').children) {
@@ -463,13 +464,15 @@ function renderHits() {
     if (!live) continue;
     const r = grade(g, live, compare(g, live, store.th));
     if (!r) continue;
-    if (useSpread()) add(r.spread);
-    if (useTotal()) add(r.total);
+    // The tile has its own Both / Spreads / Totals switch, separate from the game list.
+    if (view.hitMarket !== 'totals') add(r.spread);
+    if (view.hitMarket !== 'spreads') add(r.total);
   }
 
   const keys = [...buckets.keys()].sort((a, b) => b - a);
-  const what = { both: 'spreads and totals', spreads: 'spreads', totals: 'totals' }[view.market];
-  const scope = view.hitScope === 'all' ? `all ${Object.keys(store.weeks).length} saved weeks` : 'this week';
+  const what = { both: 'spreads and totals', spreads: 'spreads', totals: 'totals' }[view.hitMarket];
+  const nWeeks = Object.keys(store.weeks).length;
+  const scope = view.hitScope === 'all' ? (nWeeks === 1 ? 'your 1 saved week' : `all ${nWeeks} saved weeks`) : 'this week';
   let body;
   if (!keys.length) {
     body = '<p class="hits-empty">No finished games with a gap yet. Rows fill in as games go final and you sync.</p>';

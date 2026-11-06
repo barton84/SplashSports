@@ -191,10 +191,10 @@ tr.better td { background: color-mix(in srgb, var(--good-soft) 55%, transparent)
 
 /* hit rate */
 .hits { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px 12px; margin-top: 10px; }
-.hits .seg.small { position: absolute; top: 14px; right: 14px; }
+.hits-ctrls { position: absolute; top: 14px; right: 14px; display: flex; gap: 8px; }
 .seg.small button { padding: 4px 10px; font-size: 12px; }
 .hits-head h2 { margin: 0; font-size: 15px; }
-.hits-head p { margin: 2px 0 10px; color: var(--ink-2); font-size: 13px; padding-right: 190px; }
+.hits-head p { margin: 2px 0 10px; color: var(--ink-2); font-size: 13px; padding-right: 400px; }
 .hits-table { table-layout: auto; }
 .hits-table th { text-align: left; padding: 4px 8px; }
 .hits-table td { padding: 6px 8px; font-size: 13px; }
@@ -215,7 +215,7 @@ tr.better td { background: color-mix(in srgb, var(--good-soft) 55%, transparent)
 tr.mu .tc { gap: 6px; }
 .vs { color: var(--ink-3); font-size: 12px; }
 @media (max-width: 560px) {
-  .hits .seg.small { position: static; margin-bottom: 8px; }
+  .hits-ctrls { position: static; margin-bottom: 8px; flex-wrap: wrap; }
   .hits-head p { padding-right: 0; }
   .hits-table .hc { display: none; }
   .hits-table th:last-child { display: none; }
@@ -254,3 +254,5 @@ tr.muted td.ln, tr.muted td.gp, tr.muted .nm, tr.muted .rec, tr.muted .rank, tr.
   .top-actions { flex-wrap: wrap; }
   .cloud { order: 3; width: 100%; text-align: center; }
 }
+
+@media (max-width: 900px) { .hits-ctrls { position: static; margin-bottom: 8px; flex-wrap: wrap; } .hits-head p { padding-right: 0; } }

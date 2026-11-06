@@ -3,14 +3,49 @@
 //   PUT    /api/store?week=YYYY-MM-DD      body: week     -> save one week
 //   DELETE /api/store?week=YYYY-MM-DD                     -> delete one week
 //   PUT    /api/store?settings=1           body: settings -> save settings
+//   GET    /api/store?day=YYYYMMDD                        -> one basketball day
+//   PUT    /api/store?day=YYYYMMDD         body: day      -> save one basketball day
+// The plain GET also returns cbbIndex (saved days and when each changed) and
+// cbbGraded (compact finished-game results per day, for the hit rate tile).
 // Every request needs the header  x-passcode: <APP_PASSCODE>.
+import { gradedRows } from '../cbb.js';
 
 const WEEKS = 'lt:weeks';
 const SETTINGS = 'lt:settings';
+const CBB_DAYS = 'lt:cbb';
+const CBB_GRADED = 'lt:cbbg';
+const CBB_INDEX = 'lt:cbbi';
+
+function hashToObject(flat, parse = JSON.parse) {
+  const out = {};
+  for (let i = 0; i < (flat || []).length; i += 2) out[flat[i]] = parse(flat[i + 1]);
+  return out;
+}
+
+// Save a basketball day along with its graded summary and index entry.
+export async function saveDay(day) {
+  const at = day.updatedAt || new Date().toISOString();
+  await redis(['HSET', CBB_DAYS, day.id, JSON.stringify(day)]);
+  await redis(['HSET', CBB_GRADED, day.id, JSON.stringify(gradedRows(day))]);
+  await redis(['HSET', CBB_INDEX, day.id, JSON.stringify({ at, n: Object.keys(day.games || {}).length })]);
+}
+
+export async function loadDay(id) {
+  const raw = await redis(['HGET', CBB_DAYS, id]);
+  return raw ? JSON.parse(raw) : null;
+}
+
+export async function loadWeeks() {
+  return hashToObject(await redis(['HGETALL', WEEKS]));
+}
+
+export async function saveWeek(w) {
+  await redis(['HSET', WEEKS, w.id, JSON.stringify(w)]);
+}
 
 // Vercel's Upstash integration names these <PREFIX>_REST_API_URL / _TOKEN, where the
 // prefix is whatever was typed when connecting (KV by default). Find any matching pair.
-function redisConfig() {
+export function redisConfig() {
   const env = process.env;
   const pairs = [['KV_REST_API_URL', 'KV_REST_API_TOKEN'], ['UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN']];
   for (const k of Object.keys(env)) {
@@ -58,14 +93,26 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Wrong passcode' });
   }
 
-  const { week, settings } = req.query || {};
+  const { week, settings, day } = req.query || {};
   try {
+    if (day && !/^\d{8}$/.test(day)) return res.status(400).json({ error: 'Bad day id' });
+    if (req.method === 'GET' && day) {
+      return res.status(200).json({ day: await loadDay(day) });
+    }
+    if (req.method === 'PUT' && day) {
+      const body = await readBody(req);
+      if (!body || body.id !== day || typeof body.games !== 'object') return res.status(400).json({ error: 'Bad day data' });
+      await saveDay(body);
+      return res.status(200).json({ ok: true });
+    }
     if (req.method === 'GET') {
-      const flat = (await redis(['HGETALL', WEEKS])) || [];
-      const weeks = {};
-      for (let i = 0; i < flat.length; i += 2) weeks[flat[i]] = JSON.parse(flat[i + 1]);
-      const s = await redis(['GET', SETTINGS]);
-      return res.status(200).json({ weeks, settings: s ? JSON.parse(s) : null });
+      const [weeks, s, cbbIndex, cbbGraded] = await Promise.all([
+        loadWeeks(),
+        redis(['GET', SETTINGS]),
+        redis(['HGETALL', CBB_INDEX]).then(f => hashToObject(f)),
+        redis(['HGETALL', CBB_GRADED]).then(f => hashToObject(f)),
+      ]);
+      return res.status(200).json({ weeks, settings: s ? JSON.parse(s) : null, cbbIndex, cbbGraded });
     }
 
     if (week && !/^\d{4}-\d{2}-\d{2}$/.test(week)) return res.status(400).json({ error: 'Bad week id' });

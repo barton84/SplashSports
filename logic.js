@@ -100,7 +100,7 @@ export function compare(game, live, th) {
   const sT = game.total;
   const eT = live?.total ?? null;
   const out = { spreadGap: null, totalGap: null, spreadFlag: false, totalFlag: false, spreadSide: null, totalSide: null };
-  if (e1 != null) {
+  if (e1 != null && s1 != null) {
     out.spreadGap = round(e1 - s1);
     out.spreadFlag = Math.abs(out.spreadGap) >= th.spread;
     if (out.spreadGap) out.spreadSide = out.spreadGap > 0 ? 1 : 0;

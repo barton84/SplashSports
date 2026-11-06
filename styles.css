@@ -256,3 +256,42 @@ tr.muted td.ln, tr.muted td.gp, tr.muted .nm, tr.muted .rec, tr.muted .rank, tr.
 }
 
 @media (max-width: 900px) { .hits-ctrls { position: static; margin-bottom: 8px; flex-wrap: wrap; } .hits-head p { padding-right: 0; } }
+
+/* sport tabs */
+body[data-sport="cbb"] .fb-only { display: none !important; }
+body:not([data-sport="cbb"]) .cbb-only { display: none !important; }
+.title-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.seg.sport button { padding: 5px 12px; font-size: 13px; }
+
+/* basketball date controls */
+.day-nav { display: flex; align-items: center; gap: 6px; }
+#dayPick { border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 5px 8px; font-weight: 600; font-size: 14px; color: var(--ink); min-height: 34px; }
+.btn.icon { padding: 4px 10px; font-size: 18px; line-height: 1; min-height: 34px; }
+.btn.small { padding: 6px 10px; font-size: 12px; }
+
+/* search + conference filter */
+.search input { border: 1px solid var(--line); background: var(--surface); border-radius: 9px; padding: 8px 12px; width: 190px; font-size: 14px; }
+.search input:focus, #confSel:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+#confSel { border: 1px solid var(--line); background: var(--surface); border-radius: 9px; padding: 8px 10px; font-weight: 600; max-width: 240px; }
+.lg.cbb { color: var(--ink-2); max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.footnote { color: var(--ink-3); font-size: 12px; margin: 14px 2px 0; }
+
+@media (max-width: 560px) {
+  .title-row { gap: 8px; }
+  .seg.sport { width: 100%; }
+  .seg.sport button { flex: 1; }
+  .search { flex: 1 1 100%; }
+  .search input { width: 100%; font-size: 16px; }
+  #confSel { flex: 1 1 100%; max-width: none; font-size: 15px; }
+  #dayPick { font-size: 16px; }
+  .lg.cbb { max-width: 45%; }
+}
+
+/* keep cards inside the screen when the top row has a long conference name and two flags */
+.grid > .card { min-width: 0; }
+.card-top { flex-wrap: wrap; row-gap: 4px; }
+.card-top .right { flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 560px) {
+  .card-top .right { margin-left: 0; width: 100%; justify-content: flex-start; }
+  .card-top .right:empty { display: none; }
+}
